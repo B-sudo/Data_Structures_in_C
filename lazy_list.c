@@ -167,9 +167,10 @@ void PrintList(LIST LazyList)
     printf("\nPrinted successfully");
 }
 
-void main()
+int main()
 {
     LIST LazyList; 
     LazyList = CreateList();
+    printf("\nCreated");
     PrintList(LazyList);
 }
