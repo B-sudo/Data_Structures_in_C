@@ -1,0 +1,2 @@
+balancing_symbol.c
+    main函数中while()内 用于采集的表达式 c = *(s + count++) != 0 只能获值 1
