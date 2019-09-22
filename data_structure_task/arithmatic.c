@@ -639,5 +639,6 @@ void main()
         default:
             break;
         }
+        fscanf(fin, "%d", command);
     }
 }
