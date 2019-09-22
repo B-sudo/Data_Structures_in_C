@@ -24,6 +24,7 @@ typedef polyn_ptr POLYN;
 
 POLYN polyn[10];
 int command;
+FILE *fin, *fout;
 
 polyn_ptr MakeNode()                //分配节点空间
 {
@@ -82,8 +83,73 @@ STATUS ShrinkPolyn(int seq)         //将多项式中系数为0的节点删除
     return OK;
 }
 
-STATUS CreatePolyn(int seq)
-{}
+STATUS InsertPolyn(POLYN P, double coeff, int exp)      //将系数为coeff 幂为exp的项 插入多项式P中 用于创建多项式
+{
+    polyn_ptr hook, catch;
+    if (P == NULL)
+        return ERROR;
+    hook = P;
+    while (hook != NULL)
+    {
+        if (hook->next == NULL)
+        {
+            hook = hook->next = MakeNode();
+            hook->coeff = coeff;
+            hook->exp = exp;
+            hook->next = NULL;
+            return OK;
+        }
+        else if (hook->next->exp == exp)
+        {
+            hook = hook->next;
+            hook->coeff += coeff;
+            return OK;
+        }
+        else if (hook->next->exp < exp)
+        {
+            catch = MakeNode();
+            catch->coeff = coeff;
+            catch->exp = exp;
+            catch->next = hook->next;
+            hook->next = catch;
+            return OK;
+        }
+        else
+            hook = hook->next;
+    }
+    return ERROR;
+}
+
+STATUS CreatePolyn(int seq)         //seq处创立多项式，包含头结点
+{
+    double coeff;
+    int exp;
+    polyn_ptr hook;
+    if (is_proper_seq(seq) == SEQ_OVERFLOW)
+        return SEQ_OVERFLOW;
+    if (fin == NULL || fout == NULL)
+        return ERROR;
+    if (DestroyPolyn(seq) != OK)
+        return ERROR;
+    polyn[seq] = MakeNode();
+    polyn[seq]->coeff = 0.0;
+    polyn[seq]->exp = 0;
+    polyn[seq]->next = NULL;
+    fscanf(fin, "%lf %d", coeff, exp);
+    while (coeff != 0.0 || exp != 0)
+    {
+        if (exp < 0)
+            return ERROR;
+        if (InsertPolyn(polyn[seq], coeff, exp) == OK)
+            fscanf(fin, "%lf %d", coeff, exp);
+        else 
+            return ERROR;
+    }
+    if (ShrinkPolyn(seq) == OK)
+        return OK;
+    else
+        return ERROR;
+}
 
 STATUS PrintPolyn(int seq)          //对未创建多项式以及空多项式 输出NULL 其余降幂排列， 小数保留四位 TODO 修正为文件输出 输出空多项式
 {
@@ -510,3 +576,68 @@ STATUS ModPolyn(int Dividend, int divisor, int remainder)
 STATUS InvolPolyn(int seq, int power, int outcome)
 {}
 
+void main()
+{
+    int seq_1, seq_2, seq_3, value;
+    fin = fopen("polyn.in", "r");
+    fout = fopen("polyn.out", "w");
+    if (fin == NULL || fout == NULL)
+        return;
+    fscanf(fin, "%d", command);
+    while (command != 0)
+    {
+        switch (command)
+        {
+        case 1:
+            fscanf(fin, "%d", seq_1);
+            CreatePolyn(seq_1);
+            break;
+        case 2:
+            fscanf(fin, "%d", seq_1);
+            PrintPolyn(seq_1);
+            break;
+        case 3:
+            fscanf(fin, "%d %d", seq_1, seq_2);
+            CopyPolyn(seq_1, seq_2);
+            break;
+        case 4:
+            fscanf(fin, "%d %d %d", seq_1, seq_2, seq_3);
+            AddPolyn(seq_1, seq_2, seq_3);
+            break;
+        case 5:
+            fscanf(fin, "%d %d %d", seq_1, seq_2, seq_3);
+            SubtractPolyn(seq_1, seq_2, seq_3);
+            break;
+        case 6:
+            fscanf(fin, "%d %d %d", seq_1, seq_2, seq_3);
+            MutiplePolyn(seq_1, seq_2, seq_3);
+            break;
+        case 7:
+            fscanf(fin, "%d %d", seq_1, value);
+            CalculatePolyn(seq_1, value);
+            break;
+        case 8:
+            fscanf(fin, "%d", seq_1);
+            DestroyPolyn(seq_1);
+            break;
+        case 9:
+            fscanf(fin, "%d", seq_1);
+            EmptyPolyn(seq_1);
+            break;
+        case 10:
+            fscanf(fin, "%d %d", seq_1, seq_2);
+            DiffPolyn(seq_1, seq_2);
+            break;
+        case 11:
+            fscanf(fin, "%d %d", seq_1, seq_2);
+            Inf_IntegPolyn(seq_1, seq_2);
+            break;
+        case 12:
+            fscanf(fin, "%d", seq_1);
+            Def_IntegPolyn(seq_1);
+            break;
+        default:
+            break;
+        }
+    }
+}
