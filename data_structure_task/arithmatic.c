@@ -6,8 +6,7 @@
 #define OK            1   //算法正常完成
 #define ERROR           0   //算法执行出错
 #define INFEASIBLE      -1  //算法不可实现
-#define OVERFLOW        -2  //存储溢出
-#define SEQ_OVERFLOW    -3  //多项式序号溢出
+#define SEQ_OVERFLOW    -2  //多项式序号溢出
 
 typedef int STATUS;
 
@@ -24,7 +23,7 @@ typedef polyn_ptr POLYN;
 
 POLYN polyn[10];
 int command;
-FILE *fin, *fout;
+FILE *fin = NULL, *fout = NULL;
 
 polyn_ptr MakeNode()                //分配节点空间
 {
@@ -135,13 +134,13 @@ STATUS CreatePolyn(int seq)         //seq处创立多项式，包含头结点
     polyn[seq]->coeff = 0.0;
     polyn[seq]->exp = 0;
     polyn[seq]->next = NULL;
-    fscanf(fin, "%lf %d", coeff, exp);
+    fscanf(fin, "%lf %d", &coeff, &exp);
     while (coeff != 0.0 || exp != 0)
     {
         if (exp < 0)
             return ERROR;
         if (InsertPolyn(polyn[seq], coeff, exp) == OK)
-            fscanf(fin, "%lf %d", coeff, exp);
+            fscanf(fin, "%lf %d", &coeff, &exp);
         else 
             return ERROR;
     }
@@ -151,14 +150,19 @@ STATUS CreatePolyn(int seq)         //seq处创立多项式，包含头结点
         return ERROR;
 }
 
-STATUS PrintPolyn(int seq)          //对未创建多项式以及空多项式 输出NULL 其余降幂排列， 小数保留四位 TODO 修正为文件输出 输出空多项式
+STATUS PrintPolyn(int seq)          //对未创建多项式以及空多项式 输出NULL 其余降幂排列， 小数保留四位 TODO 修正为文件输出
 {
     polyn_ptr hook;
     if (is_proper_seq(seq) == SEQ_OVERFLOW)
         return SEQ_OVERFLOW;
-    if (is_null(seq) == TRUE || is_empty(seq) == TRUE)
+    if (is_null(seq) == TRUE)
     {
         printf("NULL\n");
+        return OK;
+    }
+    if (is_empty(seq) == TRUE)
+    {
+        printf("0\n");
         return OK;
     }
     else
@@ -167,8 +171,7 @@ STATUS PrintPolyn(int seq)          //对未创建多项式以及空多项式 �
         while (hook != NULL)
         {
             printf("%.4lf", hook->coeff);
-            if (hook->exp == 0)
-                return OK;
+            if (hook->exp == 0) ;
             else if (hook->exp == 1)
                 printf("x");
             else
@@ -178,6 +181,7 @@ STATUS PrintPolyn(int seq)          //对未创建多项式以及空多项式 �
             hook = hook->next;
         }
         printf("\n");
+        return OK;
     }
     
 }
@@ -211,7 +215,7 @@ STATUS CopyPolyn(int seq_m, int seq_s)          //将存在的多项式seq_m复�
         return ERROR;
 }
 
-STATUS AddPolyn(int add_1, int add_2, int sum)          //将存在的两个多项式相加，和存储至sum序号   TODO 删除过程中的0系数节点
+STATUS AddPolyn(int add_1, int add_2, int sum)          //将存在的两个多项式相加，和存储至sum序号   
 {
     polyn_ptr hook_1, hook_2, hook_sum;
     POLYN SUM;
@@ -246,10 +250,13 @@ STATUS AddPolyn(int add_1, int add_2, int sum)          //将存在的两个多�
         }
         else
         {
-            hook_sum = hook_sum->next = MakeNode();
-            hook_sum->coeff = hook_1->coeff + hook_2->coeff;
-            hook_sum->exp = hook_1->exp;
-            hook_sum->next = NULL;
+            if (hook_1->coeff + hook_2->coeff != 0)
+            {
+                hook_sum = hook_sum->next = MakeNode();
+                hook_sum->coeff = hook_1->coeff + hook_2->coeff;
+                hook_sum->exp = hook_1->exp;
+                hook_sum->next = NULL;
+            }
             hook_1 = hook_1->next;
             hook_2 = hook_2->next;
         }
@@ -285,7 +292,7 @@ STATUS AddPolyn(int add_1, int add_2, int sum)          //将存在的两个多�
         return ERROR;
 }
 
-STATUS SubtractPolyn(int minuend, int subtractor, int errand)   //将存在的两个多项式相减，和存储至errand序号    TODO 删除过程中的0系数节点
+STATUS SubtractPolyn(int minuend, int subtractor, int errand)   //将存在的两个多项式相减，和存储至errand序号    
 {
     polyn_ptr hook_1, hook_2, hook_errand;
     POLYN ERRAND;
@@ -320,10 +327,13 @@ STATUS SubtractPolyn(int minuend, int subtractor, int errand)   //将存在的�
         }
         else
         {
-            hook_errand = hook_errand->next = MakeNode();
-            hook_errand->coeff = hook_1->coeff - hook_2->coeff;
-            hook_errand->exp = hook_1->exp;
-            hook_errand->next = NULL;
+            if (hook_1->coeff - hook_2->coeff != 0)
+            {
+                hook_errand = hook_errand->next = MakeNode();
+                hook_errand->coeff = hook_1->coeff - hook_2->coeff;
+                hook_errand->exp = hook_1->exp;
+                hook_errand->next = NULL;
+            }
             hook_1 = hook_1->next;
             hook_2 = hook_2->next;
         }
@@ -581,64 +591,66 @@ void main()
     int seq_1, seq_2, seq_3, value;
     fin = fopen("polyn.in", "r");
     fout = fopen("polyn.out", "w");
-    if (fin == NULL || fout == NULL)
+    if (fin == NULL)
         return;
-    fscanf(fin, "%d", command);
+    fscanf(fin, "%d", &command);
     while (command != 0)
     {
         switch (command)
         {
         case 1:
-            fscanf(fin, "%d", seq_1);
+            fscanf(fin, "%d", &seq_1);
             CreatePolyn(seq_1);
             break;
         case 2:
-            fscanf(fin, "%d", seq_1);
+            fscanf(fin, "%d", &seq_1);
             PrintPolyn(seq_1);
             break;
         case 3:
-            fscanf(fin, "%d %d", seq_1, seq_2);
+            fscanf(fin, "%d %d", &seq_1, &seq_2);
             CopyPolyn(seq_1, seq_2);
             break;
         case 4:
-            fscanf(fin, "%d %d %d", seq_1, seq_2, seq_3);
+            fscanf(fin, "%d %d %d", &seq_1, &seq_2, &seq_3);
             AddPolyn(seq_1, seq_2, seq_3);
             break;
         case 5:
-            fscanf(fin, "%d %d %d", seq_1, seq_2, seq_3);
+            fscanf(fin, "%d %d %d", &seq_1, &seq_2, &seq_3);
             SubtractPolyn(seq_1, seq_2, seq_3);
             break;
         case 6:
-            fscanf(fin, "%d %d %d", seq_1, seq_2, seq_3);
+            fscanf(fin, "%d %d %d", &seq_1, &seq_2, &seq_3);
             MutiplePolyn(seq_1, seq_2, seq_3);
             break;
         case 7:
-            fscanf(fin, "%d %d", seq_1, value);
+            fscanf(fin, "%d %d", &seq_1, &value);
             CalculatePolyn(seq_1, value);
             break;
         case 8:
-            fscanf(fin, "%d", seq_1);
+            fscanf(fin, "%d", &seq_1);
             DestroyPolyn(seq_1);
             break;
         case 9:
-            fscanf(fin, "%d", seq_1);
+            fscanf(fin, "%d", &seq_1);
             EmptyPolyn(seq_1);
             break;
         case 10:
-            fscanf(fin, "%d %d", seq_1, seq_2);
+            fscanf(fin, "%d %d", &seq_1, &seq_2);
             DiffPolyn(seq_1, seq_2);
             break;
         case 11:
-            fscanf(fin, "%d %d", seq_1, seq_2);
+            fscanf(fin, "%d %d", &seq_1, &seq_2);
             Inf_IntegPolyn(seq_1, seq_2);
             break;
         case 12:
-            fscanf(fin, "%d", seq_1);
-            Def_IntegPolyn(seq_1);
+            fscanf(fin, "%d %d %d", &seq_1, &seq_2, &seq_3);
+            Def_IntegPolyn(seq_1, seq_2, seq_3);
             break;
         default:
             break;
         }
-        fscanf(fin, "%d", command);
+        fscanf(fin, "%d", &command);
     }
+    fclose(fin);
+    fclose(fout);
 }
