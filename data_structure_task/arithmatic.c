@@ -21,7 +21,7 @@ struct polyn_node
 
 typedef polyn_ptr POLYN;
 
-POLYN polyn[10];
+POLYN polyn[10] = {NULL};
 int command;
 FILE *fin = NULL, *fout = NULL;
 
@@ -60,14 +60,32 @@ STATUS is_empty(int seq)            //验证多项式是否为空
         return FALSE;
 }
 
-STATUS ShrinkPolyn(int seq)         //将多项式中系数为0的节点删除
+void ReversePolyn(POLYN P)       //反序 用于除法 非辗转相除法
+{
+    polyn_ptr hook, transfer;
+    int max_exp;
+    if (P == NULL || P->next == NULL)
+        return ;
+    hook = P->next;
+    max_exp = hook->exp;
+    hook->exp = 0;
+    while (hook->next != NULL)
+    {
+        transfer = hook->next;
+        hook->next = transfer->next;
+        transfer->next = P->next;
+        P->next = transfer;
+        transfer->exp = max_exp - transfer->exp;
+    } 
+    return ;
+}
+
+STATUS ShrinkPolyn(POLYN P)         //将多项式中系数为0的节点删除
 {
     polyn_ptr hook, destroyer;
-    if (is_proper_seq(seq) == SEQ_OVERFLOW)
-        return SEQ_OVERFLOW;
-    if (is_null(seq) == TRUE)
+    if (P == NULL)
         return ERROR;
-    hook = polyn[seq];
+    hook = P;
     while (hook->next != NULL)
     {
         if (hook->next->coeff == 0.0)
@@ -130,11 +148,11 @@ STATUS CreatePolyn(int seq)         //seq处创立多项式，包含头结点
         return ERROR;
     if (DestroyPolyn(seq) != OK)
         return ERROR;
-    polyn[seq] = MakeNode();
+    polyn[seq] = MakeNode();        //创建头结点
     polyn[seq]->coeff = 0.0;
     polyn[seq]->exp = 0;
     polyn[seq]->next = NULL;
-    fscanf(fin, "%lf %d", &coeff, &exp);
+    fscanf(fin, "%lf %d", &coeff, &exp); //输入第一对数据
     while (coeff != 0.0 || exp != 0)
     {
         if (exp < 0)
@@ -144,25 +162,25 @@ STATUS CreatePolyn(int seq)         //seq处创立多项式，包含头结点
         else 
             return ERROR;
     }
-    if (ShrinkPolyn(seq) == OK)
+    if (ShrinkPolyn(polyn[seq]) == OK)
         return OK;
     else
         return ERROR;
 }
 
-STATUS PrintPolyn(int seq)          //对未创建多项式以及空多项式 输出NULL 其余降幂排列， 小数保留四位 TODO 修正为文件输出
+STATUS PrintPolyn(int seq)          //对未创建多项式以及空多项式 输出NULL 其余降幂排列， 小数保留四位 
 {
     polyn_ptr hook;
     if (is_proper_seq(seq) == SEQ_OVERFLOW)
         return SEQ_OVERFLOW;
     if (is_null(seq) == TRUE)
     {
-        printf("NULL\n");
+        fprintf(fout, "NULL\n");
         return OK;
     }
     if (is_empty(seq) == TRUE)
     {
-        printf("0\n");
+        fprintf(fout, "0\n");
         return OK;
     }
     else
@@ -170,17 +188,17 @@ STATUS PrintPolyn(int seq)          //对未创建多项式以及空多项式 �
         hook = polyn[seq]->next;
         while (hook != NULL)
         {
-            printf("%.4lf", hook->coeff);
+            fprintf(fout, "%.4lf", hook->coeff);
             if (hook->exp == 0) ;
             else if (hook->exp == 1)
-                printf("x");
+                fprintf(fout, "x");
             else
-                printf("x^%d", hook->exp);
-            if (hook->next != NULL)
-                printf("+");
+                fprintf(fout, "x^%d", hook->exp);
+            if (hook->next != NULL && hook->next->coeff > 0)
+                fprintf(fout, "+");
             hook = hook->next;
         }
-        printf("\n");
+        fprintf(fout, "\n");
         return OK;
     }
     
@@ -215,20 +233,13 @@ STATUS CopyPolyn(int seq_m, int seq_s)          //将存在的多项式seq_m复�
         return ERROR;
 }
 
-STATUS AddPolyn(int add_1, int add_2, int sum)          //将存在的两个多项式相加，和存储至sum序号   
+STATUS _AddPolyn(POLYN P_1, POLYN P_2, POLYN SUM)           //重构 P_1 P_2 SUM 需非空
 {
     polyn_ptr hook_1, hook_2, hook_sum;
-    POLYN SUM;
-    if (is_proper_seq(add_1) == SEQ_OVERFLOW || is_proper_seq(add_2) == SEQ_OVERFLOW || is_proper_seq(sum) == SEQ_OVERFLOW)
-        return SEQ_OVERFLOW;
-    if (is_null(add_1) == TRUE || is_null(add_2) == TRUE)
+    if (P_1 == NULL || P_2 == NULL || SUM == NULL)
         return ERROR;
-    SUM = MakeNode();
-    SUM->coeff = 0.0;
-    SUM->exp = 0;
-    SUM->next = NULL;
-    hook_1 = polyn[add_1]->next;
-    hook_2 = polyn[add_2]->next;
+    hook_1 = P_1->next;
+    hook_2 = P_2->next;
     hook_sum = SUM;
     while (hook_1 != NULL && hook_2 != NULL)
     {
@@ -283,6 +294,23 @@ STATUS AddPolyn(int add_1, int add_2, int sum)          //将存在的两个多�
             hook_1 = hook_1->next;
         }
     }
+    return OK;
+}
+
+STATUS AddPolyn(int add_1, int add_2, int sum)          //将存在的两个多项式相加，和存储至sum序号   
+{
+    polyn_ptr hook_1, hook_2, hook_sum;
+    POLYN SUM;
+    if (is_proper_seq(add_1) == SEQ_OVERFLOW || is_proper_seq(add_2) == SEQ_OVERFLOW || is_proper_seq(sum) == SEQ_OVERFLOW)
+        return SEQ_OVERFLOW;
+    if (is_null(add_1) == TRUE || is_null(add_2) == TRUE)
+        return ERROR;
+    SUM = MakeNode();
+    SUM->coeff = 0.0;
+    SUM->exp = 0;
+    SUM->next = NULL;
+    if (_AddPolyn(polyn[add_1], polyn[add_2], SUM) != OK)
+        return ERROR;
     if (DestroyPolyn(sum) == OK)
     {
         polyn[sum] = SUM;
@@ -292,20 +320,18 @@ STATUS AddPolyn(int add_1, int add_2, int sum)          //将存在的两个多�
         return ERROR;
 }
 
-STATUS SubtractPolyn(int minuend, int subtractor, int errand)   //将存在的两个多项式相减，和存储至errand序号    
+POLYN _SubtractPolyn(POLYN MND, POLYN SBR)      //减法核心 多项式存在
 {
-    polyn_ptr hook_1, hook_2, hook_errand;
+    if (MND == NULL || SBR == NULL)
+        return NULL;
     POLYN ERRAND;
-    if (is_proper_seq(minuend) == SEQ_OVERFLOW || is_proper_seq(subtractor) == SEQ_OVERFLOW || is_proper_seq(errand) == SEQ_OVERFLOW)
-        return SEQ_OVERFLOW;
-    if (is_null(minuend) == TRUE || is_null(subtractor) == TRUE)
-        return ERROR;
+    polyn_ptr hook_1, hook_2, hook_errand;
     ERRAND = MakeNode();
     ERRAND->coeff = 0.0;
     ERRAND->exp = 0;
     ERRAND->next = NULL;
-    hook_1 = polyn[minuend]->next;
-    hook_2 = polyn[subtractor]->next;
+    hook_1 = MND->next;
+    hook_2 = SBR->next;
     hook_errand = ERRAND;
     while (hook_1 != NULL && hook_2 != NULL)
     {
@@ -327,7 +353,7 @@ STATUS SubtractPolyn(int minuend, int subtractor, int errand)   //将存在的�
         }
         else
         {
-            if (hook_1->coeff - hook_2->coeff != 0)
+            if (hook_1->coeff != hook_2->coeff)
             {
                 hook_errand = hook_errand->next = MakeNode();
                 hook_errand->coeff = hook_1->coeff - hook_2->coeff;
@@ -360,6 +386,20 @@ STATUS SubtractPolyn(int minuend, int subtractor, int errand)   //将存在的�
             hook_1 = hook_1->next;
         }
     }
+    return ERRAND;
+}
+
+STATUS SubtractPolyn(int minuend, int subtractor, int errand)   //将存在的两个多项式相减，和存储至errand序号    
+{
+    polyn_ptr hook_1, hook_2, hook_errand;
+    POLYN ERRAND;
+    if (is_proper_seq(minuend) == SEQ_OVERFLOW || is_proper_seq(subtractor) == SEQ_OVERFLOW || is_proper_seq(errand) == SEQ_OVERFLOW)
+        return SEQ_OVERFLOW;
+    if (is_null(minuend) == TRUE || is_null(subtractor) == TRUE)
+        return ERROR;
+    ERRAND = _SubtractPolyn(polyn[minuend], polyn[subtractor]);
+    if (ERRAND == NULL)
+        return ERROR;
     if (DestroyPolyn(errand) == OK)
     {
         polyn[errand] = ERRAND;
@@ -369,22 +409,20 @@ STATUS SubtractPolyn(int minuend, int subtractor, int errand)   //将存在的�
         return ERROR;
 }
 
-STATUS MutiplePolyn(int mtpler_1, int mtpler_2, int amass)      //相乘， 存储至amass 利用ShrinkPolyn将0系数节点删除
+POLYN _MutiplePolyn(POLYN M_1, POLYN M_2)         //重构 多项式指针要求非空
 {
-    polyn_ptr hook_1, hook_2, hook_amass, catch;
     POLYN AMASS;
+    polyn_ptr hook_1, hook_2, hook_amass, catch;
     double _coeff;
     int _exp;
-    if (is_proper_seq(mtpler_1) == SEQ_OVERFLOW || is_proper_seq(mtpler_2) == SEQ_OVERFLOW || is_proper_seq(amass) == SEQ_OVERFLOW)
-        return SEQ_OVERFLOW;
-    if (is_null(mtpler_1) == TRUE || is_null(mtpler_2) == TRUE)
-        return ERROR;
+    if (M_1 == NULL || M_2 == NULL)
+        return NULL;
     AMASS = MakeNode();
     AMASS->coeff = 0.0;
     AMASS->exp = 0;
     AMASS->next = NULL;
-    hook_1 = polyn[mtpler_1]->next;
-    hook_2 = polyn[mtpler_2]->next;
+    hook_1 = M_1->next;
+    hook_2 = M_2->next;
     hook_amass = AMASS;
     while (hook_1 != NULL)
     {
@@ -409,7 +447,7 @@ STATUS MutiplePolyn(int mtpler_1, int mtpler_2, int amass)      //相乘， 存�
                 hook_amass->next = catch;
                 hook_2 = hook_2->next;
             }
-            else if (hook_amass->next->exp = _exp)
+            else if (hook_amass->next->exp == _exp)
             {
                 hook_amass = hook_amass->next;
                 hook_amass->coeff += _coeff;
@@ -419,9 +457,27 @@ STATUS MutiplePolyn(int mtpler_1, int mtpler_2, int amass)      //相乘， 存�
                 hook_amass = hook_amass->next;            
         }
         hook_amass = AMASS;
-        hook_2 = polyn[mtpler_2]->next;
+        hook_2 = M_2->next;
         hook_1 = hook_1->next;
     }
+    if (ShrinkPolyn(AMASS) != OK)
+        return NULL;
+    return AMASS;
+}
+
+STATUS MutiplePolyn(int mtpler_1, int mtpler_2, int amass)      //相乘， 存储至amass 利用ShrinkPolyn将0系数节点删除
+{
+    polyn_ptr hook_1, hook_2, hook_amass, catch;
+    POLYN AMASS;
+    double _coeff;
+    int _exp;
+    if (is_proper_seq(mtpler_1) == SEQ_OVERFLOW || is_proper_seq(mtpler_2) == SEQ_OVERFLOW || is_proper_seq(amass) == SEQ_OVERFLOW)
+        return SEQ_OVERFLOW;
+    if (is_null(mtpler_1) == TRUE || is_null(mtpler_2) == TRUE)
+        return ERROR;
+    AMASS = _MutiplePolyn(polyn[mtpler_1], polyn[mtpler_2]);
+    if (AMASS == NULL)
+        return ERROR;
     if (DestroyPolyn(amass) == OK)
     {
         polyn[amass] = AMASS;
@@ -429,13 +485,10 @@ STATUS MutiplePolyn(int mtpler_1, int mtpler_2, int amass)      //相乘， 存�
     }
     else
         return ERROR;
-    if (ShrinkPolyn(amass) == OK)
-        return OK;
-    else
-        return ERROR;
+    return OK;
 }
 
-STATUS CalculatePolyn(int seq, double value)            //求值运算， 保留四位小数   TODO 浮点数表示误差 修正为文件输出
+STATUS CalculatePolyn(int seq, double value)            //求值运算， 保留四位小数   TODO 浮点数表示误差 
 {
     double outcome = 0.0;
     polyn_ptr hook;
@@ -449,7 +502,7 @@ STATUS CalculatePolyn(int seq, double value)            //求值运算， 保留
         outcome += hook->coeff * pow(value, hook->exp);
         hook = hook->next;
     }
-    printf("%.4lf\n", outcome);
+    fprintf(fout, "%.4lf\n", outcome);
     return OK;
 }
 
@@ -553,7 +606,7 @@ STATUS Inf_IntegPolyn(int seq, int outcome)     //不定积分，结果存储至
         return ERROR;
 }
 
-STATUS Def_IntegPolyn(int seq, double x1, double x2)            //定积分 计算从x1到x2的积分值   TODO 修正为文件输出
+STATUS Def_IntegPolyn(int seq, double x1, double x2)            //定积分 计算从x1到x2的积分值   
 {
     double outcome = 0.0;
     polyn_ptr hook;
@@ -567,7 +620,7 @@ STATUS Def_IntegPolyn(int seq, double x1, double x2)            //定积分 计�
         outcome += hook->coeff / (hook->exp + 1) * (pow(x2, hook->exp + 1) - pow(x1, hook->exp + 1));
         hook = hook->next;
     }
-    printf("%.4lf\n", outcome);
+    fprintf(fout, "%.4lf\n", outcome);
     return OK;    
 }
 
@@ -577,11 +630,173 @@ STATUS Com_DivisPolyn(int mem_1, int mem_2, int sub)
 STATUS Com_MutiplePolyn(int mtpler_1, int mtpler_2, int amass)
 {}
 
-STATUS DivisPolyn(int Dividend, int divisor, int factor)
-{}
+POLYN Inverse(POLYN P, int mod)         //  求逆 所有多项式指针非空
+{
+    POLYN OUTCOME;
+    polyn_ptr hook, catch;
+    POLYN HALF, HOOK;
+    if (P == NULL || P->next == NULL || mod <= 0)
+        return NULL;
+    catch = P;
+    if (mod == 1)           //基本情况  x+5 0.2(mod 1) -0.04x+0.2(mod 2) (-0.04x+0.2)(1+0.04x^2) = -0.0016x^3+0.008x^2--0.04x+0.2
+    {
+        OUTCOME = MakeNode();
+        OUTCOME->coeff = 0.0;
+        OUTCOME->exp = 0;
+        OUTCOME->next = NULL;
+        hook = OUTCOME;
+        while (catch->next != NULL)
+            catch = catch->next;
+        if (catch->exp == 0)
+        {
+            hook = hook->next = MakeNode();
+            hook->exp = 0;
+            hook->coeff = 1 / catch->coeff;
+            hook->next = NULL;
+        }
+        return OUTCOME;
+    }
+    else            
+    {
+        HALF = Inverse(P, (mod + 1) / 2);            //减半处理 模(mod+1)/2 求逆为HALF
+        HOOK = _MutiplePolyn(P, HALF);        
+        if (HOOK == NULL)
+            return ERROR;
+        hook = HOOK;
+        if (hook->next == NULL)
+        {
+            hook = hook->next = MakeNode();
+            hook->coeff = 2.0;
+            hook->exp = 0;
+            hook->next;
+        }
+        else
+        {
+            while (hook->next != NULL)
+            {
+                hook = hook->next;
+                hook->coeff = -hook->coeff;
+            }
+            if (hook->exp == 0)
+                hook->coeff += 2;
+            else
+            {
+                hook = hook->next = MakeNode();
+                hook->exp = 0;
+                hook->coeff = 2.0;
+                hook->next = NULL;
+            }
+        }
+        OUTCOME = _MutiplePolyn(HALF, HOOK);
+        if (OUTCOME == NULL)
+            return NULL;
+        hook = OUTCOME;
+        while (hook->next != NULL && hook->next->exp > mod - 1)
+        {
+            catch = hook->next;
+            hook->next = catch->next;
+            free(catch);
+        }             
+        return OUTCOME;        
+    }
+}
 
-STATUS ModPolyn(int Dividend, int divisor, int remainder)
-{}
+POLYN _DivisPolyn(POLYN DND, POLYN DOR)      //除法核心代码
+{
+    polyn_ptr hook;
+    POLYN FACTOR, AL_DOR;
+    int mod;
+    if (DND == NULL || DOR == NULL)
+        return NULL;
+    if (DOR->next == NULL)
+        return NULL;
+    if (DND->next == NULL || DND->next->exp < DOR->next->exp)
+        return FACTOR;
+    mod = DND->next->exp - DOR->next->exp + 1;
+    ReversePolyn(DOR);
+    AL_DOR = Inverse(DOR, mod);
+    if (AL_DOR == NULL)
+        return NULL;
+    ReversePolyn(DND);
+    FACTOR = _MutiplePolyn(DND, AL_DOR);
+    if (FACTOR == NULL)
+        return NULL;
+    hook = FACTOR->next;
+    while (hook != NULL && hook->exp >= mod)
+    {
+        FACTOR->next = hook->next;
+        free(hook);
+        hook = FACTOR->next;
+    }
+    ReversePolyn(FACTOR);
+    ReversePolyn(DND);
+    ReversePolyn(DOR);
+    return FACTOR;
+}
+
+STATUS DivisPolyn(int dividend, int divisor, int factor)            //除法 去除余数
+{
+    POLYN FACTOR;
+    if (is_proper_seq(dividend) == SEQ_OVERFLOW || is_proper_seq(divisor) == SEQ_OVERFLOW || is_proper_seq(factor) == SEQ_OVERFLOW)
+        return SEQ_OVERFLOW;
+    if (is_null(dividend) == TRUE || is_null(divisor) == TRUE)
+        return ERROR;
+    if (is_empty(divisor) == TRUE)
+        return ERROR;
+    FACTOR = _DivisPolyn(polyn[dividend], polyn[divisor]);
+    if (FACTOR == NULL)
+        return ERROR;
+    if (DestroyPolyn(factor) == OK)
+    {
+        polyn[factor] = FACTOR;
+        return OK;
+    }
+    else
+        return ERROR;
+    return OK;
+}
+
+POLYN _ModPolyn(POLYN DND, POLYN DOR)           //基于除法 乘法 减法 实现的模
+{
+    POLYN RMD, FACTOR;
+    polyn_ptr hook;
+    int mod;
+    if (DND == NULL || DOR == NULL || DOR->next == NULL)
+        return NULL;
+    mod = DOR->next->exp;
+    FACTOR = _DivisPolyn(DND,DOR);
+    RMD = _SubtractPolyn(DND, _MutiplePolyn(DOR, FACTOR));
+    hook = RMD->next;
+    while (hook != NULL && hook->exp >= mod)
+    {
+        RMD->next = hook->next;
+        free(hook);
+        hook = RMD->next;
+    }
+    return RMD;
+}
+
+STATUS ModPolyn(int dividend, int divisor, int remainder)       //取模
+{
+    POLYN RMD;
+    if (is_proper_seq(dividend) == SEQ_OVERFLOW || is_proper_seq(divisor) == SEQ_OVERFLOW || is_proper_seq(remainder) == SEQ_OVERFLOW)
+        return SEQ_OVERFLOW;
+    if (is_null(dividend) == TRUE || is_null(divisor) == TRUE)
+        return ERROR;
+    if (is_empty(divisor) == TRUE)
+        return ERROR;
+    RMD = _ModPolyn(polyn[dividend], polyn[divisor]);
+    if (RMD == NULL)
+        return ERROR;
+    if (DestroyPolyn(remainder) == OK)
+    {
+        polyn[remainder] = RMD;
+        return OK;
+    }
+    else
+        return ERROR;
+    return OK;
+}
 
 STATUS InvolPolyn(int seq, int power, int outcome)
 {}
@@ -589,9 +804,9 @@ STATUS InvolPolyn(int seq, int power, int outcome)
 void main()
 {
     int seq_1, seq_2, seq_3, value;
-    fin = fopen("polyn.in", "r");
-    fout = fopen("polyn.out", "w");
-    if (fin == NULL)
+    fin = fopen("test.in", "r");
+    fout = fopen("test.out", "w"); //TOBE changed
+    if (fin == NULL || fout == NULL)
         return;
     fscanf(fin, "%d", &command);
     while (command != 0)
@@ -623,7 +838,8 @@ void main()
             MutiplePolyn(seq_1, seq_2, seq_3);
             break;
         case 7:
-            fscanf(fin, "%d %d", &seq_1, &value);
+            fscanf(fin, "%d", &seq_1);
+            fscanf(fin, "%d", &value);
             CalculatePolyn(seq_1, value);
             break;
         case 8:
@@ -643,8 +859,18 @@ void main()
             Inf_IntegPolyn(seq_1, seq_2);
             break;
         case 12:
-            fscanf(fin, "%d %d %d", &seq_1, &seq_2, &seq_3);
+            fscanf(fin, "%d", &seq_1);
+            fscanf(fin, "%d", &seq_2);
+            fscanf(fin, "%d", &seq_3);
             Def_IntegPolyn(seq_1, seq_2, seq_3);
+            break;
+        case 15:
+            fscanf(fin, "%d %d %d", &seq_1, &seq_2, &seq_3);
+            DivisPolyn(seq_1, seq_2, seq_3);
+            break;
+        case 16:
+            fscanf(fin, "%d %d %d", &seq_1, &seq_2, &seq_3);
+            ModPolyn(seq_1, seq_2, seq_3);
             break;
         default:
             break;
