@@ -232,11 +232,13 @@ STATUS CopyPolyn(int seq_m, int seq_s)          //将存在的多项式seq_m复�
         return ERROR;
 }
 
-STATUS _AddPolyn(POLYN P_1, POLYN P_2, POLYN SUM)           //重构 P_1 P_2 SUM 需非空
+POLYN _AddPolyn(POLYN P_1, POLYN P_2)           //加法核心
 {
+    POLYN SUM;
     polyn_ptr hook_1, hook_2, hook_sum;
     if (P_1 == NULL || P_2 == NULL || SUM == NULL)
-        return ERROR;
+        return NULL;
+    SUM = MakeNode();
     hook_1 = P_1->next;
     hook_2 = P_2->next;
     hook_sum = SUM;
@@ -293,7 +295,7 @@ STATUS _AddPolyn(POLYN P_1, POLYN P_2, POLYN SUM)           //重构 P_1 P_2 SUM
             hook_1 = hook_1->next;
         }
     }
-    return OK;
+    return SUM;
 }
 
 STATUS AddPolyn(int add_1, int add_2, int sum)          //将存在的两个多项式相加，和存储至sum序号   
@@ -305,7 +307,8 @@ STATUS AddPolyn(int add_1, int add_2, int sum)          //将存在的两个多�
     if (is_null(add_1) == TRUE || is_null(add_2) == TRUE)
         return ERROR;
     SUM = MakeNode();
-    if (_AddPolyn(polyn[add_1], polyn[add_2], SUM) != OK)
+    SUM = _AddPolyn(polyn[add_1], polyn[add_2]);
+    if(SUM == NULL)
         return ERROR;
     if (DestroyPolyn(sum) == OK)
     {
@@ -475,7 +478,6 @@ STATUS MutiplePolyn(int mtpler_1, int mtpler_2, int amass)      //相乘， 存�
     }
     else
         return ERROR;
-    return OK;
 }
 
 STATUS CalculatePolyn(int seq, double value)            //求值运算， 保留四位小数   TODO 浮点数表示误差 
@@ -608,7 +610,7 @@ STATUS Def_IntegPolyn(int seq, double x1, double x2)            //定积分 计�
     return OK;    
 }
 
-POLYN Inverse(POLYN P, int mod)         //  求逆 所有多项式指针非空
+POLYN Inverse(POLYN P, int mod)         //  求逆 所有多项式指针非空 利用递归 乘法求得
 {
     POLYN OUTCOME;
     polyn_ptr hook, catch;
@@ -616,7 +618,7 @@ POLYN Inverse(POLYN P, int mod)         //  求逆 所有多项式指针非空
     if (P == NULL || P->next == NULL || mod <= 0)
         return NULL;
     catch = P;
-    if (mod == 1)           //基本情况  x+5 0.2(mod 1) -0.04x+0.2(mod 2) (-0.04x+0.2)(1+0.04x^2) = -0.0016x^3+0.008x^2--0.04x+0.2
+    if (mod == 1)           //基本情况 
     {
         OUTCOME = MakeNode();
         hook = OUTCOME;
@@ -633,7 +635,7 @@ POLYN Inverse(POLYN P, int mod)         //  求逆 所有多项式指针非空
     }
     else            
     {
-        HALF = Inverse(P, (mod + 1) / 2);            //减半处理 模(mod+1)/2 求逆为HALF
+        HALF = Inverse(P, (mod + 1) / 2);            //减半递归 模(mod+1)/2 求逆为HALF
         HOOK = _MutiplePolyn(P, HALF);        
         if (HOOK == NULL)
             return ERROR;
@@ -676,7 +678,7 @@ POLYN Inverse(POLYN P, int mod)         //  求逆 所有多项式指针非空
     }
 }
 
-POLYN _DivisPolyn(POLYN DND, POLYN DOR)      //除法核心代码
+POLYN _DivisPolyn(POLYN DND, POLYN DOR)      //除法核心代码 利用求逆 反序 以及暴力删除高指数节点求得
 {
     polyn_ptr hook;
     POLYN FACTOR, AL_DOR;
@@ -728,7 +730,6 @@ STATUS DivisPolyn(int dividend, int divisor, int factor)            //除法 去
     }
     else
         return ERROR;
-    return OK;
 }
 
 POLYN _ModPolyn(POLYN DND, POLYN DOR)           //基于除法 乘法 减法 实现的模
@@ -770,10 +771,9 @@ STATUS ModPolyn(int dividend, int divisor, int remainder)       //取模
     }
     else
         return ERROR;
-    return OK;
 }
 
-POLYN _Com_DivisPolyn(POLYN DND, POLYN DOR)     //利用辗转相除法求最大公因式
+POLYN _Com_DivisPolyn(POLYN DND, POLYN DOR)     //利用辗转相除法求最大公因式 利用取模
 {
     POLYN HOOK;
     double norm;
@@ -821,10 +821,9 @@ STATUS Com_DivisPolyn(int mem_1, int mem_2, int sub)        //求最大公因式
     }
     else
         return ERROR;
-    return OK;
 }
 
-POLYN _Com_MutiplePolyn(POLYN MTP_1, POLYN MTP_2)
+POLYN _Com_MutiplePolyn(POLYN MTP_1, POLYN MTP_2)           //最小公倍式算法 利用乘法 最大公因式 除法
 {
     POLYN AMASS, SUB;
     double norm;
@@ -846,6 +845,7 @@ POLYN _Com_MutiplePolyn(POLYN MTP_1, POLYN MTP_2)
     }
     return AMASS;
 }
+
 STATUS Com_MutiplePolyn(int mtpler_1, int mtpler_2, int amass)      //求最小公倍式，多项式存在且不可为0
 {
     POLYN AMASS;
@@ -865,11 +865,66 @@ STATUS Com_MutiplePolyn(int mtpler_1, int mtpler_2, int amass)      //求最小�
     }
     else
         return ERROR;
-    return OK;
 }
 
-STATUS InvolPolyn(int seq, int power, int outcome)
-{}
+POLYN _InvolPolyn(POLYN P, int power)           //快速幂乘法 递归求乘方
+{
+    POLYN OUTCOME, HALF;
+    polyn_ptr hook, hook_p;
+    if (P == NULL || power < 0)
+        return NULL;
+    OUTCOME = MakeNode();
+    hook = OUTCOME;
+    if (P->next == NULL) ;        //0多项式 乘方后为0
+    else if (power == 0)         //0次方 得常数
+    {
+        hook = hook->next = MakeNode();
+        hook->coeff = 1.0;
+    }
+    else if (power == 1)
+    {
+        hook_p = P->next;
+        while (hook_p != NULL)
+        {
+            hook = hook->next = MakeNode();
+            hook->coeff = hook_p->coeff;
+            hook->exp = hook_p->exp;
+            hook->next = NULL;
+            hook_p = hook_p->next;
+        }
+    }
+    else
+    {
+        free(OUTCOME);
+        HALF = _InvolPolyn(P, power / 2);
+        OUTCOME = _MutiplePolyn(HALF, HALF);
+        if (power % 2 == 1)
+            OUTCOME = _MutiplePolyn(P, OUTCOME);
+    }
+    if (ShrinkPolyn(OUTCOME) == OK)
+        return OUTCOME;
+    else
+        return NULL;
+}
+
+STATUS InvolPolyn(int seq, int power, int outcome)          //乘方
+{
+    POLYN OUTCOME;
+    if (is_proper_seq(seq) == SEQ_OVERFLOW || is_proper_seq(outcome) == SEQ_OVERFLOW)
+        return SEQ_OVERFLOW;
+    if (is_null(seq) == TRUE)
+        return ERROR;
+    OUTCOME = _InvolPolyn(polyn[seq], power);
+    if (OUTCOME == NULL)
+        return ERROR;
+    if (DestroyPolyn(outcome) == OK)
+    {
+        polyn[outcome] = OUTCOME;
+        return OK;
+    }
+    else
+        return ERROR;
+}
 
 void main()
 {
@@ -953,6 +1008,12 @@ void main()
         case 16:
             fscanf(fin, "%d %d %d", &seq_1, &seq_2, &seq_3);
             ModPolyn(seq_1, seq_2, seq_3);
+            break;
+        case 17:
+            fscanf(fin, "%d", &seq_1);
+            fscanf(fin, "%d", &value);
+            fscanf(fin, "%d", &seq_3);
+            InvolPolyn(seq_1, value, seq_3);
             break;
         default:
             break;
