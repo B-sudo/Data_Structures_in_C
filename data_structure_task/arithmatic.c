@@ -65,24 +65,26 @@ STATUS is_empty(int seq)            //验证多项式是否为空
         return FALSE;
 }
 
-void ReversePolyn(POLYN P)       //反序 用于除法 非辗转相除法
+POLYN ReversePolyn(POLYN P, int max_exp)       //反序 用于除法 非辗转相除法
 {
+    POLYN AL_P;
     polyn_ptr hook, transfer;
-    int max_exp;
-    if (P == NULL || P->next == NULL)
-        return ;
-    hook = P->next;
-    max_exp = hook->exp;
-    hook->exp = 0;
+    if (P == NULL)
+        return NULL;
+    AL_P = MakeNode();
+    if (P->next == NULL)
+        return AL_P;
+    hook = P;
     while (hook->next != NULL)
     {
-        transfer = hook->next;
-        hook->next = transfer->next;
-        transfer->next = P->next;
-        P->next = transfer;
-        transfer->exp = max_exp - transfer->exp;
+        hook = hook->next;
+        transfer = MakeNode();
+        transfer->coeff = hook->coeff;
+        transfer->exp = max_exp - hook->exp;
+        transfer->next = AL_P->next;
+        AL_P->next = transfer;
     } 
-    return ;
+    return AL_P;
 }
 
 STATUS ShrinkPolyn(POLYN P)         //将多项式中系数为0的节点删除
@@ -182,7 +184,7 @@ STATUS PrintPolyn(int seq)          //对未创建多项式以及空多项式 �
     }
     if (is_empty(seq) == TRUE)
     {
-        fprintf(fout, "0\n");
+        fprintf(fout, "0.0000\n");
         return OK;
     }
     else
@@ -681,8 +683,9 @@ POLYN Inverse(POLYN P, int mod)         //  求逆 所有多项式指针非空 �
 POLYN _DivisPolyn(POLYN DND, POLYN DOR)      //除法核心代码 利用求逆 反序 以及暴力删除高指数节点求得
 {
     polyn_ptr hook;
-    POLYN FACTOR, AL_DOR;
+    POLYN FACTOR, AL_DOR, R_DND, R_DOR, R_FACTOR;
     int mod;
+    FACTOR = MakeNode();
     if (DND == NULL || DOR == NULL)
         return NULL;
     if (DOR->next == NULL)
@@ -690,24 +693,22 @@ POLYN _DivisPolyn(POLYN DND, POLYN DOR)      //除法核心代码 利用求逆 �
     if (DND->next == NULL || DND->next->exp < DOR->next->exp)
         return FACTOR;
     mod = DND->next->exp - DOR->next->exp + 1;
-    ReversePolyn(DOR);
-    AL_DOR = Inverse(DOR, mod);
+    R_DOR = ReversePolyn(DOR, DOR->next->exp);
+    AL_DOR = Inverse(R_DOR, mod);
     if (AL_DOR == NULL)
         return NULL;
-    ReversePolyn(DND);
-    FACTOR = _MutiplePolyn(DND, AL_DOR);
-    if (FACTOR == NULL)
+    R_DND = ReversePolyn(DND, DND->next->exp);
+    R_FACTOR = _MutiplePolyn(R_DND, AL_DOR);
+    if (R_FACTOR == NULL)
         return NULL;
-    hook = FACTOR->next;
+    hook = R_FACTOR->next;
     while (hook != NULL && hook->exp >= mod)
     {
-        FACTOR->next = hook->next;
+        R_FACTOR->next = hook->next;
         free(hook);
-        hook = FACTOR->next;
+        hook = R_FACTOR->next;
     }
-    ReversePolyn(FACTOR);
-    ReversePolyn(DND);
-    ReversePolyn(DOR);
+    FACTOR = ReversePolyn(R_FACTOR, mod - 1);
     return FACTOR;
 }
 
@@ -780,7 +781,7 @@ POLYN _Com_DivisPolyn(POLYN DND, POLYN DOR)     //利用辗转相除法求最大
     polyn_ptr hook;
     if (DND == NULL || DOR == NULL)
         return NULL;
-    if (DND->next == NULL ||DOR->next == NULL)
+    if (DND->next == NULL || DOR->next == NULL)
         return NULL;
     while (DOR->next != NULL)
     {
@@ -788,7 +789,7 @@ POLYN _Com_DivisPolyn(POLYN DND, POLYN DOR)     //利用辗转相除法求最大
         DND = DOR;
         DOR = HOOK;
     }
-    hook = DND;
+    hook = HOOK = _SubtractPolyn(DND, DOR);
     if (hook == NULL || hook->next == NULL)
         return ERROR;
     norm = hook->next->coeff;
@@ -797,7 +798,7 @@ POLYN _Com_DivisPolyn(POLYN DND, POLYN DOR)     //利用辗转相除法求最大
         hook = hook->next;
         hook->coeff = hook->coeff / norm;
     }
-    return DND;
+    return HOOK;
 }
 
 STATUS Com_DivisPolyn(int mem_1, int mem_2, int sub)        //求最大公因式 多项式存在且不可为0
@@ -907,7 +908,7 @@ POLYN _InvolPolyn(POLYN P, int power)           //快速幂乘法 递归求乘�
         return NULL;
 }
 
-STATUS InvolPolyn(int seq, int power, int outcome)          //乘方
+STATUS InvolPolyn(int seq, int outcome, int power)          //乘方
 {
     POLYN OUTCOME;
     if (is_proper_seq(seq) == SEQ_OVERFLOW || is_proper_seq(outcome) == SEQ_OVERFLOW)
@@ -929,8 +930,8 @@ STATUS InvolPolyn(int seq, int power, int outcome)          //乘方
 void main()
 {
     int seq_1, seq_2, seq_3, value;
-    fin = fopen("test.in", "r");
-    fout = fopen("test.out", "w"); //TOBE changed
+    fin = fopen("polyn.in", "r");
+    fout = fopen("polyn.out", "w"); //TOBE changed
     if (fin == NULL || fout == NULL)
         return;
     fscanf(fin, "%d", &command);
@@ -1011,9 +1012,9 @@ void main()
             break;
         case 17:
             fscanf(fin, "%d", &seq_1);
+            fscanf(fin, "%d", &seq_2);
             fscanf(fin, "%d", &value);
-            fscanf(fin, "%d", &seq_3);
-            InvolPolyn(seq_1, value, seq_3);
+            InvolPolyn(seq_1, seq_2, value);
             break;
         default:
             break;
