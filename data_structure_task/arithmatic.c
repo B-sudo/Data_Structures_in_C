@@ -500,37 +500,48 @@ STATUS CalculatePolyn(int seq, double value)            //求值运算， 保留
     return OK;
 }
 
+POLYN _DestroyPolyn(POLYN P)        //摧毁多项式
+{
+    if (P == NULL)
+        return NULL;
+    EmptyPolyn(P);
+    free(P);
+    return NULL;
+}
+
 STATUS DestroyPolyn(int seq)        //允许对空指针操作，将整个多项式摧毁
 {
     if (is_proper_seq(seq) == SEQ_OVERFLOW)
         return SEQ_OVERFLOW;
     if (is_null(seq) == TRUE)
         return OK;
-    if (EmptyPolyn(seq) == OK)
-    {
-        free(polyn[seq]);
-        polyn[seq] = NULL;
-        return OK;
-    }
-    else
-        return ERROR;
+    polyn[seq] = _DestroyPolyn(polyn[seq]);
+    return OK;
 }
 
-STATUS EmptyPolyn(int seq)          //对非空指针处理，清空多项式
+void _EmptyPolyn(POLYN P)       //清空 多项式
 {
     polyn_ptr hook, destroyer;
-    if (is_proper_seq(seq) == SEQ_OVERFLOW)
-        return SEQ_OVERFLOW;
-    if (is_null(seq) == TRUE)
-        return ERROR;
-    hook = polyn[seq]->next;
-    polyn[seq]->next = NULL;
+    if (P == NULL)
+        return ;
+    hook = P->next;
+    P->next = NULL;
     while (hook != NULL)
     {
         destroyer = hook;
         hook = hook->next;
         free(destroyer);
     }
+    return ;
+}
+
+STATUS EmptyPolyn(int seq)          //对非空指针处理，清空多项式
+{
+    if (is_proper_seq(seq) == SEQ_OVERFLOW)
+        return SEQ_OVERFLOW;
+    if (is_null(seq) == TRUE)
+        return ERROR;
+    _EmptyPolyn(polyn[seq]);
     return OK;
 }
 
@@ -675,7 +686,9 @@ POLYN Inverse(POLYN P, int mod)         //  求逆 所有多项式指针非空 �
             catch = hook->next;
             hook->next = catch->next;
             free(catch);
-        }             
+        }
+        HALF = _DestroyPolyn(HALF);
+        HOOK = _DestroyPolyn(HOOK);             
         return OUTCOME;        
     }
 }
@@ -692,23 +705,33 @@ POLYN _DivisPolyn(POLYN DND, POLYN DOR)      //除法核心代码 利用求逆 �
         return NULL;
     if (DND->next == NULL || DND->next->exp < DOR->next->exp)
         return FACTOR;
+    FACTOR = _DestroyPolyn(FACTOR);
     mod = DND->next->exp - DOR->next->exp + 1;
     R_DOR = ReversePolyn(DOR, DOR->next->exp);
     AL_DOR = Inverse(R_DOR, mod);
     if (AL_DOR == NULL)
+    {
+        R_DOR = _DestroyPolyn(R_DOR);
         return NULL;
+    }
     R_DND = ReversePolyn(DND, DND->next->exp);
     R_FACTOR = _MutiplePolyn(R_DND, AL_DOR);
-    if (R_FACTOR == NULL)
-        return NULL;
-    hook = R_FACTOR->next;
-    while (hook != NULL && hook->exp >= mod)
+    if (R_FACTOR == NULL) ;
+    else
     {
-        R_FACTOR->next = hook->next;
-        free(hook);
         hook = R_FACTOR->next;
+        while (hook != NULL && hook->exp >= mod)
+        {
+            R_FACTOR->next = hook->next;
+            free(hook);
+            hook = R_FACTOR->next;
+        }
+        FACTOR = ReversePolyn(R_FACTOR, mod - 1);
     }
-    FACTOR = ReversePolyn(R_FACTOR, mod - 1);
+    AL_DOR = _DestroyPolyn(AL_DOR);
+    R_DND = _DestroyPolyn(R_DND);
+    R_DOR = _DestroyPolyn(R_DOR);
+    R_FACTOR = _DestroyPolyn(R_FACTOR);
     return FACTOR;
 }
 
@@ -735,14 +758,17 @@ STATUS DivisPolyn(int dividend, int divisor, int factor)            //除法 去
 
 POLYN _ModPolyn(POLYN DND, POLYN DOR)           //基于除法 乘法 减法 实现的模
 {
-    POLYN RMD, FACTOR;
+    POLYN RMD, FACTOR, AMASS;
     polyn_ptr hook;
     int mod;
     if (DND == NULL || DOR == NULL || DOR->next == NULL)
         return NULL;
     mod = DOR->next->exp;
     FACTOR = _DivisPolyn(DND,DOR);
-    RMD = _SubtractPolyn(DND, _MutiplePolyn(DOR, FACTOR));
+    AMASS = _MutiplePolyn(DOR, FACTOR);
+    RMD = _SubtractPolyn(DND, AMASS);
+    FACTOR = _DestroyPolyn(FACTOR);
+    AMASS = _DestroyPolyn(AMASS);
     hook = RMD->next;
     while (hook != NULL && hook->exp >= mod)
     {
@@ -778,18 +804,25 @@ POLYN _Com_DivisPolyn(POLYN DND, POLYN DOR)     //利用辗转相除法求最大
 {
     POLYN HOOK;
     double norm;
-    polyn_ptr hook;
+    polyn_ptr hook, hook_d, hook_r;
     if (DND == NULL || DOR == NULL)
         return NULL;
     if (DND->next == NULL || DOR->next == NULL)
         return NULL;
-    while (DOR->next != NULL)
+    hook_d = DND;
+    hook_r = DOR;
+    while (hook_r->next != NULL)
     {
-        HOOK = _ModPolyn(DND, DOR);
-        DND = DOR;
-        DOR = HOOK;
+        HOOK = _ModPolyn(hook_d, hook_r);
+        if (hook_d != DND && hook_d != DOR)
+            hook_d = _DestroyPolyn(hook_d);
+        hook_d = hook_r;
+        hook_r = HOOK;
     }
-    hook = HOOK = _SubtractPolyn(DND, DOR);
+    hook = HOOK = _SubtractPolyn(hook_d, hook_r);
+    if (hook_d != DOR)
+        hook_d = _DestroyPolyn(hook_d);
+    hook_r = _DestroyPolyn(hook_r);
     if (hook == NULL || hook->next == NULL)
         return ERROR;
     norm = hook->next->coeff;
@@ -826,7 +859,7 @@ STATUS Com_DivisPolyn(int mem_1, int mem_2, int sub)        //求最大公因式
 
 POLYN _Com_MutiplePolyn(POLYN MTP_1, POLYN MTP_2)           //最小公倍式算法 利用乘法 最大公因式 除法
 {
-    POLYN AMASS, SUB;
+    POLYN AMASS, SUB, _AMASS;
     double norm;
     polyn_ptr hook;
     if (MTP_1 == NULL || MTP_2 == NULL)
@@ -834,7 +867,10 @@ POLYN _Com_MutiplePolyn(POLYN MTP_1, POLYN MTP_2)           //最小公倍式算
     if (MTP_1->next == NULL || MTP_2->next == NULL)
         return NULL;
     SUB = _Com_DivisPolyn(MTP_1, MTP_2);
-    AMASS = _DivisPolyn(_MutiplePolyn(MTP_1, MTP_2), SUB);
+    _AMASS = _MutiplePolyn(MTP_1, MTP_2);
+    AMASS = _DivisPolyn(_AMASS, SUB);
+    SUB = _DestroyPolyn(SUB);
+    _AMASS = _DestroyPolyn(_AMASS);
     hook = AMASS;
     if (hook == NULL || hook->next == NULL)
         return ERROR;
@@ -899,8 +935,14 @@ POLYN _InvolPolyn(POLYN P, int power)           //快速幂乘法 递归求乘�
         free(OUTCOME);
         HALF = _InvolPolyn(P, power / 2);
         OUTCOME = _MutiplePolyn(HALF, HALF);
+        HALF = _DestroyPolyn(HALF);
         if (power % 2 == 1)
+        {
+            HALF = OUTCOME;
             OUTCOME = _MutiplePolyn(P, OUTCOME);
+            HALF = _DestroyPolyn(HALF);
+        }
+            
     }
     if (ShrinkPolyn(OUTCOME) == OK)
         return OUTCOME;
