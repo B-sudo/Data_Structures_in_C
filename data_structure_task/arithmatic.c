@@ -210,24 +210,26 @@ STATUS PrintPolyn(int seq)          //对未创建多项式以及空多项式 �
 
 STATUS CopyPolyn(int seq_m, int seq_s)          //将存在的多项式seq_m复制到seq_s处，不论seq_s多项式存在与否
 {
+    POLYN COP;
     polyn_ptr hook, coper;
     if (is_proper_seq(seq_m) == SEQ_OVERFLOW || is_proper_seq(seq_s) == SEQ_OVERFLOW)
         return SEQ_OVERFLOW;
     if (is_null(seq_m) == TRUE)
         return ERROR;
+    hook = polyn[seq_m];
+    coper = COP = MakeNode();
+    while (hook->next != NULL)
+    {
+        coper->next = MakeNode();
+        hook = hook->next;
+        coper = coper->next;
+        coper->coeff = hook->coeff;
+        coper->exp = hook->exp;
+        coper->next = NULL;
+    }
     if (DestroyPolyn(seq_s) == OK)
     {
-        hook = polyn[seq_m];
-        coper = polyn[seq_s] = MakeNode();
-        while (hook->next != NULL)
-        {
-            coper->next = MakeNode();
-            hook = hook->next;
-            coper = coper->next;
-            coper->coeff = hook->coeff;
-            coper->exp = hook->exp;
-            coper->next = NULL;
-        }
+        polyn[seq_s] = COP;
         return OK;
     }
     else
